@@ -1,0 +1,67 @@
+## .NET / MSBuild çıktıları
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+[Bb]uild/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+*.cache
+project.lock.json
+project.fragment.lock.json
+
+## Visual Studio / VS Code / Rider
+.vs/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+.idea/
+*.DotSettings.user
+
+## Test & coverage
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+*.opencover.xml
+
+## NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+
+## ASP.NET
+**/wwwroot/lib/
+*.dbmdl
+*.jfm
+*.pfx
+*.publishsettings
+orleans.codegen.cs
+
+## Secrets & local overrides (do not commit real credentials)
+appsettings.*.local.json
+**/appsettings.Production.local.json
+secrets.json
+.env
+.env.*.local
+
+## OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## Docker / tooling
+*.log
+
+## EF / tooling scratch
+*.mdf
+*.ldf

@@ -1,0 +1,14 @@
+**/.git
+**/.vs
+**/.idea
+**/bin
+**/obj
+**/TestResults
+**/*.user
+**/*.trx
+**/appsettings.*.local.json
+**/.env
+**/.env.*
+!**/.env.example
+**/README.md
+**/DemoSocialMedia.Api.Tests
