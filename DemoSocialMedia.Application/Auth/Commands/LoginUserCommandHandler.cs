@@ -1,5 +1,6 @@
-using DemoSocialMedia.Application.Auth.DTOs;
+using System.Net;
 using DemoSocialMedia.Application.Auth.Services;
+using DemoSocialMedia.Application.Common;
 using DemoSocialMedia.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -22,19 +23,17 @@ public class LoginUserCommandHandler : IRequestHandler<LoginUserCommand, LoginUs
     public async Task<LoginUserResult> Handle(LoginUserCommand command, CancellationToken cancellationToken)
     {
         var req = command.Request;
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == req.Email, cancellationToken);
-        if (user == null)
-            throw new InvalidOperationException("Kullanıcı bulunamadı veya şifre hatalı.");
-        if (!_passwordHasher.VerifyPassword(req.Password, user.PasswordHash))
-            throw new InvalidOperationException("Kullanıcı bulunamadı veya şifre hatalı.");
-        // (Opsiyonel: E-posta doğrulama kontrolü eklenebilir)
-        var token = _jwtTokenGenerator.GenerateToken(user.Id, user.Email, user.Nickname);
+        var email = req.Email.Trim().ToLowerInvariant();
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+        if (user == null || !_passwordHasher.VerifyPassword(req.Password, user.PasswordHash))
+            throw new AppException(HttpStatusCode.Unauthorized, "E-posta veya şifre hatalı.");
+
         return new LoginUserResult
         {
             UserId = user.Id,
             Email = user.Email,
             Nickname = user.Nickname,
-            Token = token
+            Token = _jwtTokenGenerator.GenerateToken(user.Id, user.Email, user.Nickname)
         };
     }
-} 
+}

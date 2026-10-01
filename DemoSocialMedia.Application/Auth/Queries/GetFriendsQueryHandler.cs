@@ -1,28 +1,23 @@
-using DemoSocialMedia.Domain.Entities;
+using DemoSocialMedia.Application.Auth.DTOs;
+using DemoSocialMedia.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using DemoSocialMedia.Infrastructure.Persistence;
 
-namespace DemoSocialMedia.Application.Auth.Queries
+namespace DemoSocialMedia.Application.Auth.Queries;
+
+public class GetFriendsQueryHandler : IRequestHandler<GetFriendsQuery, List<UserSummaryDto>>
 {
-    public class GetFriendsQueryHandler : IRequestHandler<GetFriendsQuery, List<User>>
+    private readonly AppDbContext _db;
+    public GetFriendsQueryHandler(AppDbContext db) => _db = db;
+
+    // Entity yerine DTO: eskiden User döndüğü için PasswordHash dahil tüm alanlar arkadaşlara gidiyordu.
+    public Task<List<UserSummaryDto>> Handle(GetFriendsQuery request, CancellationToken cancellationToken)
     {
-        private readonly AppDbContext _db;
-        public GetFriendsQueryHandler(AppDbContext db)
-        {
-            _db = db;
-        }
-        public async Task<List<User>> Handle(GetFriendsQuery request, CancellationToken cancellationToken)
-        {
-            // Kullanıcının arkadaşlarını bul (çift taraflı)
-            var friendIds = await _db.Friendships
-                .Where(f => f.User1Id == request.UserId || f.User2Id == request.UserId)
-                .Select(f => f.User1Id == request.UserId ? f.User2Id : f.User1Id)
-                .ToListAsync(cancellationToken);
-            var friends = await _db.Users
-                .Where(u => friendIds.Contains(u.Id))
-                .ToListAsync(cancellationToken);
-            return friends;
-        }
+        var uid = request.UserId;
+        return _db.Users
+            .Where(u => _db.Friendships.Any(f =>
+                (f.User1Id == uid && f.User2Id == u.Id) || (f.User2Id == uid && f.User1Id == u.Id)))
+            .Select(u => new UserSummaryDto { Id = u.Id, Nickname = u.Nickname, ProfilePictureUrl = u.ProfilePictureUrl })
+            .ToListAsync(cancellationToken);
     }
-} 
+}

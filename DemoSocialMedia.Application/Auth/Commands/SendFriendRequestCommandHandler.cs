@@ -1,33 +1,37 @@
+using System.Net;
+using DemoSocialMedia.Application.Common;
 using DemoSocialMedia.Domain.Entities;
-using MediatR;
 using DemoSocialMedia.Infrastructure.Persistence;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace DemoSocialMedia.Application.Auth.Commands
+namespace DemoSocialMedia.Application.Auth.Commands;
+
+public class SendFriendRequestCommandHandler : IRequestHandler<SendFriendRequestCommand>
 {
-    public class SendFriendRequestCommandHandler : IRequestHandler<SendFriendRequestCommand, bool>
+    private readonly AppDbContext _db;
+    public SendFriendRequestCommandHandler(AppDbContext db) => _db = db;
+
+    public async Task Handle(SendFriendRequestCommand request, CancellationToken cancellationToken)
     {
-        private readonly AppDbContext _db;
-        public SendFriendRequestCommandHandler(AppDbContext db)
+        var (a, b) = (request.SenderId, request.ReceiverId);
+        if (a == b)
+            throw new AppException(HttpStatusCode.BadRequest, "Kendinize arkadaşlık isteği gönderemezsiniz.");
+        if (!await _db.Users.AnyAsync(u => u.Id == b, cancellationToken))
+            throw new AppException(HttpStatusCode.NotFound, "Kullanıcı bulunamadı.");
+        // Her arkadaşlık bir istekten doğar; iki yönü de kontrol etmek "zaten arkadaş" durumunu da kapsar.
+        if (await _db.FriendRequests.AnyAsync(fr =>
+                (fr.SenderId == a && fr.ReceiverId == b) || (fr.SenderId == b && fr.ReceiverId == a), cancellationToken))
+            throw new AppException(HttpStatusCode.Conflict, "Bu kullanıcıyla zaten bir istek veya arkadaşlık var.");
+
+        _db.FriendRequests.Add(new FriendRequest
         {
-            _db = db;
-        }
-        public async Task<bool> Handle(SendFriendRequestCommand request, CancellationToken cancellationToken)
-        {
-            var exists = await _db.FriendRequests
-                .FirstOrDefaultAsync(fr => fr.SenderId == request.SenderId && fr.ReceiverId == request.ReceiverId, cancellationToken);
-            if (exists != null) return false;
-            var fr = new FriendRequest
-            {
-                SenderId = request.SenderId,
-                ReceiverId = request.ReceiverId,
-                Status = "Pending",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            _db.FriendRequests.Add(fr);
-            await _db.SaveChangesAsync(cancellationToken);
-            return true;
-        }
+            SenderId = a,
+            ReceiverId = b,
+            Status = "Pending",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync(cancellationToken);
     }
-} 
+}

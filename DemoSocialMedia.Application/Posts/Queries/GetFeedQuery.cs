@@ -1,9 +1,7 @@
 using DemoSocialMedia.Application.Posts.DTOs;
 using MediatR;
-using System.Collections.Generic;
 
 namespace DemoSocialMedia.Application.Posts.Queries;
- 
-public class GetFeedQuery : IRequest<List<PostDto>>
-{
-} 
+
+// CurrentUserId null ise (anonim) IsLiked/IsSaved false döner.
+public record GetFeedQuery(Guid? CurrentUserId) : IRequest<List<PostDto>>;

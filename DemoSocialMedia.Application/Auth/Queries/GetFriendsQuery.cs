@@ -1,14 +1,6 @@
+using DemoSocialMedia.Application.Auth.DTOs;
 using MediatR;
-using DemoSocialMedia.Domain.Entities;
 
-namespace DemoSocialMedia.Application.Auth.Queries
-{
-    public class GetFriendsQuery : IRequest<List<User>>
-    {
-        public Guid UserId { get; set; }
-        public GetFriendsQuery(Guid userId)
-        {
-            UserId = userId;
-        }
-    }
-} 
+namespace DemoSocialMedia.Application.Auth.Queries;
+
+public record GetFriendsQuery(Guid UserId) : IRequest<List<UserSummaryDto>>;

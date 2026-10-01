@@ -4,26 +4,26 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DemoSocialMedia.Api.Controllers;
 
-[ApiController]
-[Route("api/files")]
-public class FilesController : ControllerBase
+[Authorize]
+public class FilesController : BaseController
 {
-    private readonly IMinioService _minioService;
-    public FilesController(IMinioService minioService)
-    {
-        _minioService = minioService;
-    }
+    private const long MaxBytes = 5 * 1024 * 1024;
+    private static readonly HashSet<string> AllowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
-    [ApiExplorerSettings(IgnoreApi = true)]
+    private readonly IMinioService _minioService;
+    public FilesController(IMinioService minioService) => _minioService = minioService;
+
+    // Dönen objectName, POST /api/posts gövdesindeki imageUrl alanına verilir.
+    // ponytail: Content-Type istemcinin beyanı; gerekirse magic-byte kontrolü ekle.
     [HttpPost("upload")]
-    [Authorize]
-    public async Task<IActionResult> Upload([FromForm] IFormFile file)
+    public async Task<IActionResult> Upload(IFormFile file)
     {
-        if (file == null || file.Length == 0)
-            return BadRequest("Dosya seçilmedi.");
+        if (file.Length == 0 || file.Length > MaxBytes)
+            return BadRequest(new { message = "Dosya boş olamaz ve 5 MB'ı aşamaz." });
+        if (!AllowedTypes.Contains(file.ContentType))
+            return BadRequest(new { message = "Sadece JPEG, PNG, GIF veya WebP yüklenebilir." });
+
         var objectName = await _minioService.UploadFileAsync(file);
-        // Geliştirme ortamında public URL; prod'da presigned URL
-        var publicUrl = await _minioService.GetImageUrlAsync(objectName);
-        return Ok(new { url = publicUrl, objectName });
+        return Ok(new { url = await _minioService.GetImageUrlAsync(objectName), objectName });
     }
-} 
+}

@@ -1,150 +1,72 @@
 ## Demo Social Media API
 
-Modern, katmanlı bir .NET 9 sosyal medya API örneği. Kimlik doğrulama, arkadaşlık, gönderi/yorum/beğeni/kayıt, dosya yükleme (MinIO) ve gerçek zamanlı sohbet (SignalR) özellikleri içerir. Geliştirilebilir, test edilebilir ve buluta hazır olacak şekilde Domain-Driven ve CQRS + MediatR desenleriyle yapılandırılmıştır.
+Katmanlı bir .NET 10 sosyal medya API örneği: kimlik doğrulama, arkadaşlık, gönderi/yorum/beğeni/kayıt, dosya yükleme (MinIO) ve gerçek zamanlı sohbet (SignalR). CQRS + MediatR ile yapılandırılmıştır.
 
-### Mimarinin Genel Yapısı
-- **DemoSocialMedia.Api**: HTTP katmanı, controller’lar, middleware’ler, Swagger, SignalR hub.
-- **DemoSocialMedia.Application**: Use case’ler (CQRS komut/sorgu + MediatR), DTO’lar, servis sözleşmeleri ve iş kuralları.
-- **DemoSocialMedia.Domain**: Saf domain varlıkları ve ilişkiler.
-- **DemoSocialMedia.Infrastructure**: EF Core `AppDbContext`, entity konfigurasyonları, MinIO servis entegrasyonu ve kalıcı katman.
-
-```
-DemoSocialMedia.sln
-├─ DemoSocialMedia.Api
-│  ├─ Controllers (Auth, Users, Posts, Friends, Chat, Files, Map)
-│  ├─ Middleware (JwtCookieToHeader, UserId)
-│  ├─ Swagger (FileUploadOperationFilter)
-│  └─ ChatHub (SignalR)
-├─ DemoSocialMedia.Application
-│  ├─ Auth (Commands, DTOs, Queries, Services, Validators)
-│  ├─ Posts (Commands, DTOs, Queries)
-│  └─ Map (DTOs)
-├─ DemoSocialMedia.Domain (Entities)
-└─ DemoSocialMedia.Infrastructure
-   ├─ Persistence (AppDbContext)
-   ├─ Configurations (EF Core)
-   └─ Services (MinioService)
-```
-
-### Öne Çıkanlar
-- JWT kimlik doğrulama ve cookie-to-header köprüleme
-- Health Check (PostgreSQL)
-- Swagger ile API dokümantasyonu ve form-data dosya yükleme desteği
-- MinIO ile dosya yükleme ve geliştirme ortamında public URL dönüşü
-- SignalR ile oda bazlı gerçek zamanlı mesajlaşma
+### Mimari
+- **DemoSocialMedia.Api**: Controller'lar, `ApiExceptionHandler`, Swagger, SignalR hub.
+- **DemoSocialMedia.Application**: Komut/sorgu handler'ları (MediatR), DTO'lar, FluentValidation kuralları, `AppException`.
+- **DemoSocialMedia.Domain**: Saf entity'ler.
+- **DemoSocialMedia.Infrastructure**: EF Core `AppDbContext`, entity konfigürasyonları, migration'lar, MinIO servisi.
 
 ### Hızlı Başlangıç
-1) Bağımlılıklar
-- .NET 9 SDK
-- PostgreSQL (ör: `indievalley` veritabanı)
-- MinIO (dev için `minio/minio`)
-
-2) Konfigürasyon
-- `DemoSocialMedia.Api/appsettings.json`
-  - `ConnectionStrings:DefaultConnection` değerini kendi PostgreSQL bağlantınıza göre güncelleyin (örnek yerel değerler şablondur; gerçek şifreleri repoya koymayın).
-- MinIO için environment veya `appsettings.*` ile şu anahtarlar desteklenir:
-  - `Minio:Endpoint` (varsayılan `localhost:9000`; Docker ağında `minio:9000`)
-  - `Minio:AccessKey` (varsayılan `minioadmin`)
-  - `Minio:SecretKey` (varsayılan `minioadmin123`)
-  - `Minio:Bucket` (varsayılan `media`)
-  - `Minio:PublicBaseUrl` (isteğe bağlı; Development’ta tarayıcıya dönen görüntü URL’i için, örn. Docker’da `http://localhost:9000`)
-
-### Docker ile çalıştırma
-PostgreSQL, MinIO ve API tek komutla ayağa kalkar; API başlarken EF Core migration’ları uygulanır.
+Gereksinimler: .NET 10 SDK, PostgreSQL, MinIO (ya da sadece Docker).
 
 ```bash
 docker compose up --build
 ```
-
 - API: `http://localhost:8080` (Swagger: `/swagger`, health: `/health`)
-- MinIO konsol: `http://localhost:9001` (docker-compose’daki root kullanıcı/şifre)
-- Yerel `5432` portu compose ile paylaşılıyorsa çakışma olursa `docker-compose.yml` içinde host portunu değiştirin.
+- MinIO konsol: `http://localhost:9001`
+- Değerler `.env` dosyasından okunur (`copy .env.example .env`); dosya yoksa compose'daki dev varsayılanları kullanılır.
+- API başlarken EF Core migration'ları uygulanır.
 
-Entegrasyon testleri SQLite ile çalışır; `TestAppFactory` PostgreSQL migration’ını atlamak için `SKIP_DATABASE_MIGRATION` ayarlar.
-
-3) Çalıştırma
+Yerel çalıştırma (API açılışta migration uyguladığı için Postgres ayakta olmalı, yoksa `Failed to connect to 127.0.0.1:5432` ile kapanır):
 ```bash
-dotnet build
-dotnet run --project DemoSocialMedia.Api
-```
-- Geliştirme profili varsayılan URL: `https://localhost:7186` (Swagger) ve `http://localhost:5216`
-- Swagger UI: `https://localhost:7186/swagger`
-
-### Swagger'ı Açma
-1) HTTPS geliştirme sertifikasını güvenilir kılın (tek seferlik):
-```bash
-dotnet dev-certs https --trust
-```
-2) API'yi https profiliyle başlatın:
-```bash
+docker compose up -d --wait postgres minio
+dotnet tool restore
 dotnet run --project DemoSocialMedia.Api --launch-profile https
 ```
-3) Swagger'ı açın (Windows PowerShell):
-```bash
-Start-Process https://localhost:7186/swagger
-```
-- Portlar farklıysa `DemoSocialMedia.Api/Properties/launchSettings.json` içindeki `applicationUrl` değerini kontrol edin.
+- Swagger: `https://localhost:7186/swagger` (ilk seferde `dotnet dev-certs https --trust`)
+- Bağlantı ve MinIO ayarları `DemoSocialMedia.Api/appsettings.json`; JWT anahtarı `appsettings.Development.json` (en az 32 bayt, yoksa uygulama açılmaz).
+- CORS'a izin verilen origin'ler: `Cors:Origins`.
+- Yeni migration: `dotnet ef migrations add <Ad> -p DemoSocialMedia.Infrastructure -s DemoSocialMedia.Api -o Persistence/Migrations`
 
-4) MinIO Hızlı Kurulum (opsiyonel)
-```bash
-docker run -p 9000:9000 -p 9001:9001 \
-  -e MINIO_ROOT_USER=minioadmin \
-  -e MINIO_ROOT_PASSWORD=minioadmin123 \
-  -v ./minio-data:/data \
-  quay.io/minio/minio server /data --console-address ":9001"
-```
+Testler SQLite in-memory ile çalışır (`dotnet test`); `TestAppFactory`, PostgreSQL migration'ını atlamak için `SKIP_DATABASE_MIGRATION` ayarlar ve MinIO'yu sahte servisle değiştirir.
+
+### Hata Formatı
+İş kuralı hataları `AppException` ile fırlatılır ve `ApiExceptionHandler` tarafından [ProblemDetails](https://www.rfc-editor.org/rfc/rfc9457) olarak döner (`400/401/403/404/409`). Doğrulama hataları FluentValidation üzerinden `400 ValidationProblemDetails` döner.
 
 ### Kimlik Doğrulama
-- Login sonrasında backend, HttpOnly bir `token` cookie’si ayarlar.
-- `JwtCookieToHeaderMiddleware`, cookie’deki JWT’yi `Authorization: Bearer <token>` header’ına köprüler.
-- `UserIdMiddleware`, doğrulanmış isteklerde `HttpContext.Items["UserId"]` değerini ayarlar.
-
-### Sağlık Durumu
-- `GET /health` → PostgreSQL bağlantısı için health check.
-
-### SignalR Sohbet
-- Hub: `/chathub`
-- İstemci metodları:
-  - `JoinRoom(roomId)` / `LeaveRoom(roomId)`
-  - `SendMessage(roomId, user, message)` → `ReceiveMessage` olayıyla yayınlanır.
-
-### Dosya Yükleme (MinIO)
-- Endpoint: `POST /api/files/upload` (form-data: `file`)
-- Geliştirme ortamında public URL döner, prod’da presigned URL üretilir.
+- `POST /api/auth/register` → kayıt (e-posta küçük harfe normalize edilir)
+- `POST /api/auth/login` → HttpOnly `token` cookie'si set eder
+- `POST /api/auth/logout` → cookie'yi siler
+- `GET /api/auth/me` → oturum bilgisi
+- JWT, `Authorization: Bearer` header'ından ya da (header yoksa) `token` cookie'sinden okunur (`JwtBearerEvents.OnMessageReceived`).
 
 ### Kullanıcı ve Arkadaşlık
-- `GET /api/users/search?query=` → oturum sahibine göre filtrelenmiş arama
-- `POST /api/friends/requests` → istek gönder (body: `{ receiverId }`)
+- `GET /api/users/search?query=` → nickname'de arama, e-postada sadece tam eşleşme; kendin ve arkadaşların hariç
+- `POST /api/friends/requests` → istek gönder (`{ receiverId }`); kendine veya zaten istek/arkadaşlık olan kişiye gönderilemez
 - `PUT /api/friends/requests/{requestId}/accept` → istek kabul
-- `GET /api/friends` → arkadaş listesi
-- `GET /api/friends/requests?incoming=true|false` → istekler
+- `GET /api/friends` → arkadaş listesi (`id, nickname, profilePictureUrl`)
+- `GET /api/friends/requests?incoming=true|false` → bekleyen istekler
 
 ### Gönderiler
-- `GET /api/posts` (Anonim erişim) → feed
-- `GET /api/posts/{id}` → detay (oturum varsa beğeni/kayıt durumu işaretleri ile)
-- `POST /api/posts` → gönderi oluştur (body: `{ content, imageUrl? }`)
-- `POST /api/posts/{id}/comments` → yorum ekle (body: `{ content }`)
-- `POST /api/posts/{id}/like` → beğeni toggle
-- `POST /api/posts/{id}/save` → kaydetme toggle
+- `GET /api/posts` (anonim) → son 50 gönderi; oturum varsa `isLiked/isSaved` dolu
+- `GET /api/posts/{id}` (anonim) → detay
+- `POST /api/posts` → gönderi oluştur (`{ content, imageUrl? }` — `imageUrl` = upload'ın döndürdüğü `objectName`)
+- `POST /api/posts/{id}/comments` → yorum (`{ content }`)
+- `POST /api/posts/{id}/like` / `POST /api/posts/{id}/save` → toggle
 
-### Harita
-- `GET /api/map/grid` → Demo 2D grid içerik (dummy hücreler)
+### Dosya Yükleme (MinIO)
+- `POST /api/files/upload` (form-data: `file`) → `{ url, objectName }`
+- Sadece JPEG/PNG/GIF/WebP, en fazla 5 MB.
+- Development'ta düz public URL döner (bucket ilk oluşturulurken anonim okumaya açılır); diğer ortamlarda 1 saatlik presigned URL.
 
-### Auth
-- `POST /api/auth/register` → kullanıcı kaydı
-- `POST /api/auth/login` → giriş (HttpOnly `token` cookie set eder)
-- `GET /api/auth/me` → oturum bilgisi
+### SignalR Sohbet
+- `POST /api/chat/rooms` → oda oluştur (`{ name?, isGroupChat, memberIds }`); aynı iki kişi için birebir oda idempotenttir
+- `GET /api/chat/rooms/{roomId}/messages` → geçmiş (sadece üyeler)
+- `POST /api/chat/rooms/{roomId}/messages` → mesaj kaydet + odaya `ReceiveMessage` yayını (sadece üyeler)
+- Hub: `/chathub` (oturum gerekli). İstemci metodları: `JoinRoom(roomId)` (üyelik kontrolü yapılır) / `LeaveRoom(roomId)`. Hub üzerinden mesaj gönderilmez; gönderen kimliği taklit edilemesin diye mesajlar REST ile gider.
 
-### Veri Modeli (Seçmece)
-- `User, Post, Comment, Like, Save, FriendRequest, Friendship, ChatRoom, ChatRoomMember, Message`
-- İlişkiler EF Core `Configurations` altında tanımlı ve `AppDbContext` içinde uygulanır.
-
-### Geliştirme İpuçları
-- Komut/Sorgu akışı için MediatR kullanın; controller’lar ince kalsın.
-- Validation için FluentValidation otomatik entegrasyon hazır.
-- CORS profili `AllowAll` ile `http://localhost:3000` vb. kökenler açık.
-
-### Ortam Değişkenleri ve Güvenlik
-- JWT imza anahtarınızı prod’da giz yönetime taşıyın (ör: Azure Key Vault, AWS SM).
+### Güvenlik Notları
+- JWT anahtarını prod'da gizli yönetimine taşıyın (Key Vault, AWS SM vb.).
 - `ASPNETCORE_ENVIRONMENT=Development|Production`
-- Veritabanı ve MinIO bilgilerini ortam değişkenleri ile geçebilirsiniz.

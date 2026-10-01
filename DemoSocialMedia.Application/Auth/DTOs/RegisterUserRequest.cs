@@ -6,7 +6,7 @@ public class RegisterUserRequest
     public string LastName { get; set; } = null!;
     public string Email { get; set; } = null!;
     public string Password { get; set; } = null!;
-    public DateTime DateOfBirth { get; set; }
+    public DateOnly DateOfBirth { get; set; }
     public bool NewsletterOptIn { get; set; }
     public bool IsAgreedKvkk { get; set; }
     public bool IsAgreedConsent { get; set; }

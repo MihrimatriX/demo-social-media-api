@@ -12,6 +12,6 @@ public class CommentConfiguration : IEntityTypeConfiguration<Comment>
         builder.Property(c => c.Content).IsRequired().HasMaxLength(500);
         builder.Property(c => c.CreatedAt).HasDefaultValueSql("NOW()");
         builder.HasIndex(c => c.PostId);
-        builder.HasIndex(c => c.UserId);
+        builder.HasOne<User>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
     }
-} 
+}

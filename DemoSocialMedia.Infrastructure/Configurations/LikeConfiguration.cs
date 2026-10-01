@@ -9,8 +9,8 @@ public class LikeConfiguration : IEntityTypeConfiguration<Like>
     public void Configure(EntityTypeBuilder<Like> builder)
     {
         builder.HasKey(l => l.Id);
+        // (PostId, UserId) unique index'i PostId aramalarını da karşılar.
         builder.HasIndex(l => new { l.PostId, l.UserId }).IsUnique();
-        builder.HasIndex(l => l.PostId);
-        builder.HasIndex(l => l.UserId);
+        builder.HasOne<User>().WithMany().HasForeignKey(l => l.UserId).OnDelete(DeleteBehavior.Cascade);
     }
-} 
+}

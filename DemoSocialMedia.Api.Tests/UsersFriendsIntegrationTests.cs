@@ -84,7 +84,15 @@ public class UsersFriendsIntegrationTests : IClassFixture<TestAppFactory>
 
         var friends1 = await u1Client.GetAsync("/api/friends");
         friends1.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await friends1.Content.ReadAsStringAsync()).Should().Contain(r2.UserId.ToString());
+        var friends1Body = await friends1.Content.ReadAsStringAsync();
+        friends1Body.Should().Contain(r2.UserId.ToString());
+        friends1Body.Should().NotContainAny("passwordHash", "email"); // eskiden User entity'si dönüyordu
+
+        // ters yönde veya kendine istek reddedilmeli (çift Friendship kaydını önler)
+        (await u2Client.PostAsJsonAsync("/api/friends/requests", new SendFriendRequestRequest { ReceiverId = r1.UserId }))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await u1Client.PostAsJsonAsync("/api/friends/requests", new SendFriendRequestRequest { ReceiverId = r1.UserId }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var friends2 = await u2Client.GetAsync("/api/friends");
         friends2.StatusCode.Should().Be(HttpStatusCode.OK);

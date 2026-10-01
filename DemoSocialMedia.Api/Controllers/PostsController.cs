@@ -1,3 +1,4 @@
+using DemoSocialMedia.Api.Extensions;
 using DemoSocialMedia.Application.Posts.Commands;
 using DemoSocialMedia.Application.Posts.DTOs;
 using DemoSocialMedia.Application.Posts.Queries;
@@ -7,67 +8,39 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DemoSocialMedia.Api.Controllers;
 
-[ApiController]
-[Route("api/[controller]")]
 [Authorize]
-public class PostsController : ControllerBase
+public class PostsController : BaseController
 {
     private readonly IMediator _mediator;
     public PostsController(IMediator mediator) => _mediator = mediator;
 
-    [HttpGet("{id}")]
+    // Feed ve detay anonim okunabilir; oturum varsa IsLiked/IsSaved doldurulur.
+    [AllowAnonymous]
+    [HttpGet]
+    public async Task<ActionResult<List<PostDto>>> GetFeed()
+        => await _mediator.Send(new GetFeedQuery(User.GetUserId()));
+
+    [AllowAnonymous]
+    [HttpGet("{id:guid}")]
     public async Task<ActionResult<PostDto>> GetPostDetail(Guid id)
     {
-        Guid? userId = null;
-        if (HttpContext.Items["UserId"] is Guid uid)
-            userId = uid;
-        var result = await _mediator.Send(new GetPostDetailQuery(id, userId));
-        if (result == null) return NotFound();
-        return Ok(result);
+        var result = await _mediator.Send(new GetPostDetailQuery(id, User.GetUserId()));
+        return result == null ? NotFound() : result;
     }
 
-    [HttpPost("{id}/comments")]
-    public async Task<ActionResult<CommentDto>> CreateComment(Guid id, [FromBody] CreateCommentRequest request)
-    {
-        if (HttpContext.Items["UserId"] is not Guid userId)
-            return Unauthorized("Kullanıcı kimliği bulunamadı.");
-        var result = await _mediator.Send(new CreateCommentCommand(id, userId, request.Content));
-        return Ok(result);
-    }
-
-    [HttpPost("{id}/like")]
-    public async Task<ActionResult> ToggleLike(Guid id)
-    {
-        if (HttpContext.Items["UserId"] is not Guid userId)
-            return Unauthorized("Kullanıcı kimliği bulunamadı.");
-        var liked = await _mediator.Send(new ToggleLikeCommand(id, userId));
-        return Ok(new { liked });
-    }
-
-    [HttpPost("{id}/save")]
-    public async Task<ActionResult> ToggleSave(Guid id)
-    {
-        if (HttpContext.Items["UserId"] is not Guid userId)
-            return Unauthorized("Kullanıcı kimliği bulunamadı.");
-        var saved = await _mediator.Send(new ToggleSaveCommand(id, userId));
-        return Ok(new { saved });
-    }
-
-    [HttpGet]
-    [AllowAnonymous]
-    public async Task<ActionResult<List<PostDto>>> GetFeed()
-    {
-        var result = await _mediator.Send(new GetFeedQuery());
-        return Ok(result);
-    }
-
-    [Authorize]
     [HttpPost]
-    public async Task<ActionResult<PostDto>> CreatePost([FromBody] CreatePostRequest request)
-    {
-        if (HttpContext.Items["UserId"] is not Guid userId)
-            return Unauthorized("Kullanıcı kimliği bulunamadı.");
-        var result = await _mediator.Send(new CreatePostCommand(userId, request.Content, request.ImageUrl));
-        return Ok(result);
-    }
-} 
+    public async Task<ActionResult<PostDto>> CreatePost(CreatePostRequest request)
+        => await _mediator.Send(new CreatePostCommand(CurrentUserId, request.Content, request.ImageUrl));
+
+    [HttpPost("{id:guid}/comments")]
+    public async Task<ActionResult<CommentDto>> CreateComment(Guid id, CreateCommentRequest request)
+        => await _mediator.Send(new CreateCommentCommand(id, CurrentUserId, request.Content));
+
+    [HttpPost("{id:guid}/like")]
+    public async Task<IActionResult> ToggleLike(Guid id)
+        => Ok(new { liked = await _mediator.Send(new ToggleLikeCommand(id, CurrentUserId)) });
+
+    [HttpPost("{id:guid}/save")]
+    public async Task<IActionResult> ToggleSave(Guid id)
+        => Ok(new { saved = await _mediator.Send(new ToggleSaveCommand(id, CurrentUserId)) });
+}

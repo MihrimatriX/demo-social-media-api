@@ -1,34 +1,41 @@
-using FluentValidation;
-using FluentValidation.AspNetCore;
+using System.Text;
 using DemoSocialMedia.Api;
+using DemoSocialMedia.Api.Controllers;
+using DemoSocialMedia.Application.Auth.Commands;
 using DemoSocialMedia.Application.Auth.Services;
 using DemoSocialMedia.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using System.Reflection;
+using DemoSocialMedia.Infrastructure.Services;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
+    throw new InvalidOperationException("'Jwt:Key' en az 32 bayt olmalı (HMAC-SHA256). appsettings.Development.json veya ortam değişkeni ile verin.");
+
 builder.Services.AddControllers();
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.Load("DemoSocialMedia.Application")));
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<RegisterUserCommand>());
 
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<IEmailSender, EmailSenderMock>();
 builder.Services.AddScoped<IVerificationTokenGenerator, VerificationTokenGenerator>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddSingleton<IMinioService, MinioService>();
 
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddValidatorsFromAssemblyContaining<DemoSocialMedia.Application.Auth.Validators.RegisterUserRequestValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<RegisterUserCommand>();
+
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.OperationFilter<DemoSocialMedia.Api.Swagger.FileUploadOperationFilter>();
-});
+builder.Services.AddSwaggerGen();
 
 var defaultConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 var healthChecks = builder.Services.AddHealthChecks();
@@ -37,44 +44,35 @@ if (!string.IsNullOrWhiteSpace(defaultConnectionString))
     healthChecks.AddNpgSql(defaultConnectionString, name: "PostgreSQL");
 }
 
-builder.Services.AddScoped<DemoSocialMedia.Infrastructure.Services.IMinioService, DemoSocialMedia.Infrastructure.Services.MinioService>();
-
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.WithOrigins(
-                  "http://localhost:3000",
-                  "http://localhost:9000",
-                  "https://localhost:3000"
-               )
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
-    });
+    options.AddPolicy("Frontend", policy => policy
+        .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [])
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
 });
 
 builder.Services.AddSignalR();
 
-// JWT Authentication (temel yapı, test için AllowAnonymous kullanılabilir)
-var jwtKey = builder.Configuration["Jwt:Key"];
-if (string.IsNullOrWhiteSpace(jwtKey))
-{
-    throw new InvalidOperationException("JWT key configuration missing. Please set 'Jwt:Key' in configuration (e.g. appsettings.Development.json).");
-}
-
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.RequireHttpsMetadata = false;
-        options.SaveToken = true;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = false,
             ValidateAudience = false,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+        // Tarayıcı istemcileri (SignalR dahil) token'ı HttpOnly cookie'de taşır; Authorization header varsa o kazanır.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = ctx =>
+            {
+                if (!ctx.Request.Headers.ContainsKey("Authorization"))
+                    ctx.Token = ctx.Request.Cookies[AuthController.TokenCookie];
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -87,6 +85,8 @@ if (!string.Equals(Environment.GetEnvironmentVariable("SKIP_DATABASE_MIGRATION")
     await db.Database.MigrateAsync();
 }
 
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -94,17 +94,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-app.UseCors("AllowAll");
-
-app.UseMiddleware<DemoSocialMedia.Api.Middleware.JwtCookieToHeaderMiddleware>();
+app.UseCors("Frontend");
 app.UseAuthentication();
-app.UseMiddleware<DemoSocialMedia.Api.Middleware.UserIdMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<ChatHub>("/chathub");
-
 app.MapHealthChecks("/health");
 app.Run();
 

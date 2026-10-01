@@ -1,9 +1,9 @@
 namespace DemoSocialMedia.Application.Auth.DTOs;
 
-public class UserSearchResultDto
+// Başka kullanıcılara gösterilen herkese açık profil özeti; e-posta bilinçli olarak yok.
+public class UserSummaryDto
 {
     public Guid Id { get; set; }
     public string Nickname { get; set; } = null!;
-    public string Email { get; set; } = null!;
     public string? ProfilePictureUrl { get; set; }
-} 
+}

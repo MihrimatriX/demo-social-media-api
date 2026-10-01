@@ -1,12 +1,14 @@
-using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
+using System.Net;
 using DemoSocialMedia.Api.Extensions;
+using DemoSocialMedia.Application.Common;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DemoSocialMedia.Api.Controllers;
 
+[ApiController]
+[Route("api/[controller]")]
 public abstract class BaseController : ControllerBase
 {
-    protected Guid? UserId => User.GetUserId();
-    protected string? Email => User.GetEmail();
-    protected string? Nickname => User.GetNickname();
-} 
+    // Kendi imzaladığımız token'da sub her zaman var; yoksa ApiExceptionHandler 401 döner.
+    protected Guid CurrentUserId => User.GetUserId() ?? throw new AppException(HttpStatusCode.Unauthorized, "Oturum bulunamadı.");
+}

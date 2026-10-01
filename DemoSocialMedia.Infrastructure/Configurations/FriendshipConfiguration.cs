@@ -2,15 +2,16 @@ using DemoSocialMedia.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace DemoSocialMedia.Infrastructure.Configurations
+namespace DemoSocialMedia.Infrastructure.Configurations;
+
+public class FriendshipConfiguration : IEntityTypeConfiguration<Friendship>
 {
-    public class FriendshipConfiguration : IEntityTypeConfiguration<Friendship>
+    public void Configure(EntityTypeBuilder<Friendship> builder)
     {
-        public void Configure(EntityTypeBuilder<Friendship> builder)
-        {
-            builder.HasKey(f => f.Id);
-            builder.HasIndex(f => new { f.User1Id, f.User2Id }).IsUnique();
-            builder.Property(f => f.CreatedAt).HasDefaultValueSql("NOW()");
-        }
+        builder.HasKey(f => f.Id);
+        builder.HasIndex(f => new { f.User1Id, f.User2Id }).IsUnique();
+        builder.Property(f => f.CreatedAt).HasDefaultValueSql("NOW()");
+        builder.HasOne<User>().WithMany().HasForeignKey(f => f.User1Id).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<User>().WithMany().HasForeignKey(f => f.User2Id).OnDelete(DeleteBehavior.Cascade);
     }
-} 
+}

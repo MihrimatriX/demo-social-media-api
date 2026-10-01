@@ -1,8 +1,10 @@
+using System.Net;
+using DemoSocialMedia.Application.Common;
 using DemoSocialMedia.Application.Posts.DTOs;
 using DemoSocialMedia.Domain.Entities;
 using DemoSocialMedia.Infrastructure.Persistence;
 using MediatR;
-using System;
+using Microsoft.EntityFrameworkCore;
 
 namespace DemoSocialMedia.Application.Posts.Commands;
 
@@ -15,6 +17,8 @@ public class CreateCommentCommandHandler : IRequestHandler<CreateCommentCommand,
     }
     public async Task<CommentDto> Handle(CreateCommentCommand request, CancellationToken cancellationToken)
     {
+        if (!await _db.Posts.AnyAsync(p => p.Id == request.PostId, cancellationToken))
+            throw new AppException(HttpStatusCode.NotFound, "Gönderi bulunamadı.");
         var comment = new Comment
         {
             PostId = request.PostId,
@@ -24,7 +28,6 @@ public class CreateCommentCommandHandler : IRequestHandler<CreateCommentCommand,
         };
         _db.Comments.Add(comment);
         await _db.SaveChangesAsync(cancellationToken);
-        // Eğer ileride comment'e görsel eklenirse burada imageUrl dönebilirsin
         return new CommentDto
         {
             Id = comment.Id,

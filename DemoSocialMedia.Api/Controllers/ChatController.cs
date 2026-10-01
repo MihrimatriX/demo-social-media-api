@@ -1,48 +1,37 @@
 using DemoSocialMedia.Application.Auth.Commands;
-using DemoSocialMedia.Application.Auth.Queries;
 using DemoSocialMedia.Application.Auth.DTOs;
+using DemoSocialMedia.Application.Auth.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 
-namespace DemoSocialMedia.Api.Controllers
+namespace DemoSocialMedia.Api.Controllers;
+
+[Authorize]
+public class ChatController : BaseController
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    [Authorize]
-    public class ChatController : BaseController
+    private readonly IMediator _mediator;
+    private readonly IHubContext<ChatHub> _hub;
+    public ChatController(IMediator mediator, IHubContext<ChatHub> hub)
     {
-        private readonly IMediator _mediator;
-        public ChatController(IMediator mediator)
-        {
-            _mediator = mediator;
-        }
-
-        [HttpPost("rooms")]
-        public async Task<IActionResult> CreateRoom([FromBody] CreateChatRoomCommand command)
-        {
-            if (UserId == null) return Unauthorized(new { message = "Oturum bulunamadı." });
-            command.UserId = UserId.Value;
-            var roomId = await _mediator.Send(command);
-            return Ok(roomId);
-        }
-
-        [HttpGet("rooms/{roomId}/messages")]
-        public async Task<IActionResult> GetMessages(Guid roomId)
-        {
-            var query = new GetMessagesQuery(roomId);
-            var result = await _mediator.Send(query);
-            return Ok(result);
-        }
-
-        [HttpPost("rooms/{roomId}/messages")]
-        public async Task<IActionResult> SendMessage(Guid roomId, [FromBody] SendMessageRequest request)
-        {
-            if (UserId == null) return Unauthorized(new { message = "Oturum bulunamadı." });
-            var command = new SendMessageCommand(roomId, UserId.Value, request.Content);
-            var result = await _mediator.Send(command);
-            if (!result) return BadRequest(new { message = "Mesaj gönderilemedi." });
-            return Ok();
-        }
+        _mediator = mediator;
+        _hub = hub;
     }
-} 
+
+    [HttpPost("rooms")]
+    public async Task<ActionResult<Guid>> CreateRoom(CreateChatRoomRequest request)
+        => await _mediator.Send(new CreateChatRoomCommand(request.Name, request.IsGroupChat, request.MemberIds, CurrentUserId));
+
+    [HttpGet("rooms/{roomId:guid}/messages")]
+    public async Task<IActionResult> GetMessages(Guid roomId)
+        => Ok(await _mediator.Send(new GetMessagesQuery(roomId, CurrentUserId)));
+
+    [HttpPost("rooms/{roomId:guid}/messages")]
+    public async Task<IActionResult> SendMessage(Guid roomId, SendMessageRequest request)
+    {
+        var message = await _mediator.Send(new SendMessageCommand(roomId, CurrentUserId, request.Content));
+        await _hub.Clients.Group(roomId.ToString()).SendAsync("ReceiveMessage", message);
+        return Ok(message);
+    }
+}

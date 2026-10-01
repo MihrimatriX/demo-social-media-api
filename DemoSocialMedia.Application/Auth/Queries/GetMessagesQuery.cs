@@ -1,14 +1,6 @@
-using MediatR;
 using DemoSocialMedia.Domain.Entities;
+using MediatR;
 
-namespace DemoSocialMedia.Application.Auth.Queries
-{
-    public class GetMessagesQuery : IRequest<List<Message>>
-    {
-        public Guid ChatRoomId { get; set; }
-        public GetMessagesQuery(Guid chatRoomId)
-        {
-            ChatRoomId = chatRoomId;
-        }
-    }
-} 
+namespace DemoSocialMedia.Application.Auth.Queries;
+
+public record GetMessagesQuery(Guid ChatRoomId, Guid UserId) : IRequest<List<Message>>;

@@ -9,8 +9,8 @@ public class SaveConfiguration : IEntityTypeConfiguration<Save>
     public void Configure(EntityTypeBuilder<Save> builder)
     {
         builder.HasKey(s => s.Id);
+        // (PostId, UserId) unique index'i PostId aramalarını da karşılar.
         builder.HasIndex(s => new { s.PostId, s.UserId }).IsUnique();
-        builder.HasIndex(s => s.PostId);
-        builder.HasIndex(s => s.UserId);
+        builder.HasOne<User>().WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
     }
-} 
+}

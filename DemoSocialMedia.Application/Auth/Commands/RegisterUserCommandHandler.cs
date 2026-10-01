@@ -1,4 +1,6 @@
+using System.Net;
 using DemoSocialMedia.Application.Auth.Services;
+using DemoSocialMedia.Application.Common;
 using DemoSocialMedia.Domain.Entities;
 using DemoSocialMedia.Infrastructure.Persistence;
 using MediatR;
@@ -24,20 +26,19 @@ public class RegisterUserCommandHandler : IRequestHandler<RegisterUserCommand, R
     public async Task<RegisterUserResult> Handle(RegisterUserCommand command, CancellationToken cancellationToken)
     {
         var req = command.Request;
-        // Email ve Nickname benzersiz mi kontrol et
-        if (await _db.Users.AnyAsync(u => u.Email == req.Email, cancellationToken))
-            throw new InvalidOperationException("Bu e-posta ile kayıtlı bir kullanıcı zaten var.");
+        // KVKK/açık rıza ve alan kuralları RegisterUserRequestValidator'da; burada sadece benzersizlik.
+        var email = req.Email.Trim().ToLowerInvariant();
+        if (await _db.Users.AnyAsync(u => u.Email == email, cancellationToken))
+            throw new AppException(HttpStatusCode.Conflict, "Bu e-posta ile kayıtlı bir kullanıcı zaten var.");
         if (await _db.Users.AnyAsync(u => u.Nickname == req.Nickname, cancellationToken))
-            throw new InvalidOperationException("Bu kullanıcı adı (nickname) zaten alınmış.");
-        if (!req.IsAgreedKvkk || !req.IsAgreedConsent)
-            throw new InvalidOperationException("KVKK ve Açık Rıza onaylanmalı.");
+            throw new AppException(HttpStatusCode.Conflict, "Bu kullanıcı adı (nickname) zaten alınmış.");
 
         var user = new User
         {
             Id = Guid.NewGuid(),
             FirstName = req.FirstName,
             LastName = req.LastName,
-            Email = req.Email,
+            Email = email,
             PasswordHash = _passwordHasher.HashPassword(req.Password),
             DateOfBirth = req.DateOfBirth,
             NewsletterOptIn = req.NewsletterOptIn,

@@ -21,7 +21,7 @@ public static class TestJson
             LastName = "User",
             Email = email,
             Password = password,
-            DateOfBirth = new DateTime(1990, 1, 1),
+            DateOfBirth = new DateOnly(1990, 1, 1),
             NewsletterOptIn = false,
             IsAgreedKvkk = true,
             IsAgreedConsent = true,

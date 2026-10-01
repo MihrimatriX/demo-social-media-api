@@ -55,6 +55,22 @@ public class PostsFilesChatIntegrationTests : IClassFixture<TestAppFactory>
         // save toggle true then false
         (await authed.PostAsync($"/api/posts/{post.Id}/save", null)).StatusCode.Should().Be(HttpStatusCode.OK);
         (await authed.PostAsync($"/api/posts/{post.Id}/save", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // feed sayıları DB'den gelmeli (eskiden navigation yüklenmediği için hep 0'dı)
+        await authed.PostAsync($"/api/posts/{post.Id}/like", null);
+        var feed = await (await authed.GetAsync("/api/posts")).ReadAsAsync<List<PostDto>>();
+        var inFeed = feed.Single(p => p.Id == post.Id);
+        inFeed.LikeCount.Should().Be(1);
+        inFeed.CommentCount.Should().Be(1);
+        inFeed.Comments.Should().ContainSingle(c => c.Content == "nice!");
+        inFeed.IsLiked.Should().BeTrue();
+
+        var missing = Guid.NewGuid();
+        (await authed.PostAsync($"/api/posts/{missing}/like", null)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await authed.PostAsJsonAsync($"/api/posts/{missing}/comments", new CreateCommentRequest { Content = "x" }))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await authed.PostAsJsonAsync("/api/posts", new CreatePostRequest { Content = "" }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -66,17 +82,20 @@ public class PostsFilesChatIntegrationTests : IClassFixture<TestAppFactory>
         var reg = await (await client.PostAsJsonAsync("/api/auth/register", regReq)).ReadAsAsync<RegisterUserResult>();
         client.WithBearer(reg.UserId, regReq.Email, regReq.Nickname);
 
-        var content = new MultipartFormDataContent();
-        var fileBytes = Encoding.UTF8.GetBytes("hello");
-        var fileContent = new ByteArrayContent(fileBytes);
-        fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("text/plain");
-        content.Add(fileContent, "file", "hello.txt");
+        static MultipartFormDataContent Form(string contentType, string fileName)
+        {
+            var fileContent = new ByteArrayContent(Encoding.UTF8.GetBytes("hello"));
+            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
+            return new MultipartFormDataContent { { fileContent, "file", fileName } };
+        }
 
-        var resp = await client.PostAsync("/api/files/upload", content);
+        var resp = await client.PostAsync("/api/files/upload", Form("image/png", "hello.png"));
         resp.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("\"url\"");
         body.Should().Contain("minio.local");
+
+        (await client.PostAsync("/api/files/upload", Form("text/html", "x.html"))).StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -110,6 +129,14 @@ public class PostsFilesChatIntegrationTests : IClassFixture<TestAppFactory>
         messagesResp.StatusCode.Should().Be(HttpStatusCode.OK);
         var messagesBody = await messagesResp.Content.ReadAsStringAsync();
         messagesBody.Should().Contain("hi");
+
+        // odada olmayan kullanıcı okuyamaz / yazamaz
+        var cReq = TestJson.NewRegisterRequest("c3@test.local", "c3");
+        var c = await (await anon.PostAsJsonAsync("/api/auth/register", cReq)).ReadAsAsync<RegisterUserResult>();
+        var outsider = _factory.CreateClient().WithBearer(c.UserId, cReq.Email, cReq.Nickname);
+        (await outsider.GetAsync($"/api/chat/rooms/{room1}/messages")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await outsider.PostAsJsonAsync($"/api/chat/rooms/{room1}/messages", new { content = "sneaky" }))
+            .StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 }
 
